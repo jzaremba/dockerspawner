@@ -51,6 +51,14 @@ class SystemUserSpawner(DockerSpawner):
         )
     )
 
+    group_id = Integer(-1,
+        help=dedent(
+            """
+            System user group_id, as in user_id.
+            """
+        )
+    )
+
     @property
     def host_homedir(self):
         """
@@ -102,6 +110,7 @@ class SystemUserSpawner(DockerSpawner):
         env.update(dict(
             USER=self.user.name,
             USER_ID=self.user_id,
+            GROUP_ID=self.group_id,
             HOME=self.homedir
         ))
         return env
@@ -116,15 +125,29 @@ class SystemUserSpawner(DockerSpawner):
         """
         return pwd.getpwnam(self.user.name).pw_uid
 
+    def _group_id_default(self):
+        """
+        Get group_id from pwd lookup by name
+        
+        If the authenticator stores group_id in the user state dict,
+        this will never be called, which is necessary if
+        the system users are not on the Hub system (i.e. Hub itself is in a container).
+        """
+        return pwd.getpwnam(self.user.name).pw_gid
+
     def load_state(self, state):
         super().load_state(state)
         if 'user_id' in state:
             self.user_id = state['user_id']
+        if 'group_id' in state:
+            self.group_id = state['group_id']
 
     def get_state(self):
         state = super().get_state()
         if self.user_id >= 0:
             state['user_id'] = self.user_id
+        if self.group_id >= 0:
+            state['group_id'] = self.group_id
         return state
 
     def start(self, image=None, extra_create_kwargs=None,
